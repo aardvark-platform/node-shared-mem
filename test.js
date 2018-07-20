@@ -1,5 +1,5 @@
 var tape = require('tape')
-var n = require('./build/Release/node-shared-mem')
+var SharedMemory = require('./build/Release/node_shared_mem.node')
 
 function str(buffer, len) {
 	var a = new Uint8Array(buffer);
@@ -14,7 +14,8 @@ function str(buffer, len) {
 
 tape('does not crash', function (t) {
   var len = 1 << 20;
-  var a = new n.SharedMemory('testfile', len)
+  console.log(SharedMemory);
+  var a = new SharedMemory.SharedMemory('testfile', len)
   console.log("name:    " + a.name)
   console.log("length:  " + a.length)
   console.log("content: " + str(a.buffer,len))

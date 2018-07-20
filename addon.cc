@@ -1,8 +1,8 @@
-#include <nan.h>
+#include <napi.h>
 #include "node-shared-mem.h"
 
-void InitAll(v8::Local<v8::Object> exports) {
-  node_shared_mem::SharedMemory::Init(exports);
+Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
+  return SharedMemory::Init(env, exports);
 }
 
-NODE_MODULE(addon, InitAll)
+NODE_API_MODULE(node_shared_mem, InitAll)
