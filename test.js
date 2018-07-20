@@ -14,10 +14,17 @@ function str(buffer, len) {
 
 tape('does not crash', function (t) {
   var len = 1 << 20;
-  var a = new n.NodeSharedMem('testfile', len)
-  console.log(str(a.buffer,len))
-
+  var a = new n.SharedMemory('testfile', len)
+  console.log("name:    " + a.name)
+  console.log("length:  " + a.length)
+  console.log("content: " + str(a.buffer,len))
   a.close()
+  
+  console.log("name:    " + a.name)
+  console.log("length:  " + a.length)
+  console.log("content: " + a.buffer)
+  
+  
   t.pass('did not crash')
   t.end()
 })

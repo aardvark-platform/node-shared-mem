@@ -24,42 +24,42 @@ namespace node_shared_mem {
 
 	#define fail(...) { seterror(__VA_ARGS__); return; }
 
-	Nan::Persistent<Function> NodeSharedMem::constructor;
+	Nan::Persistent<Function> SharedMemory::constructor;
 
-	NodeSharedMem::NodeSharedMem(HANDLE handle, void* ptr, unsigned int length)
+	SharedMemory::SharedMemory(HANDLE handle, void* ptr, unsigned int length)
 	{
 		this->handle = handle;
 		this->ptr = ptr;
 		this->length = length;
 	}
 
-	NodeSharedMem::~NodeSharedMem() {
+	SharedMemory::~SharedMemory() {
 
 	}
 
-	void NodeSharedMem::Init(Local<Object> exports) {
+	void SharedMemory::Init(Local<Object> exports) {
 
 		// Prepare constructor template
 		Local<FunctionTemplate> tpl = Nan::New<v8::FunctionTemplate>(New);
-		tpl->SetClassName(Nan::New("NodeSharedMem").ToLocalChecked());
+		tpl->SetClassName(Nan::New("SharedMemory").ToLocalChecked());
 		tpl->InstanceTemplate()->SetInternalFieldCount(3);
 
 		// Prototype
 		Nan::SetPrototypeMethod(tpl, "close", Close);
 
 		constructor.Reset(tpl->GetFunction());
-		exports->Set(Nan::New("NodeSharedMem").ToLocalChecked(), tpl->GetFunction());
+		exports->Set(Nan::New("SharedMemory").ToLocalChecked(), tpl->GetFunction());
 
 	}
 
-	void NodeSharedMem::New(const Nan::FunctionCallbackInfo<Value>& args) {
+	void SharedMemory::New(const Nan::FunctionCallbackInfo<Value>& args) {
 		Isolate* isolate = args.GetIsolate();
 
 		if (args.IsConstructCall()) {
 			// Invoked as constructor: `new MyObject(...)`
-			if (args.Length() < 2) fail("needs mapName and mapSize");
-			if (!args[0]->IsString()) fail("argument 0 needs to be a valid mapName");
-			if (!args[1]->IsNumber()) fail("argument 1 needs to be a valid mapLength");
+			if (args.Length() < 2)		fail("needs mapName and mapSize");
+			if (!args[0]->IsString())	fail("argument 0 needs to be a valid mapName");
+			if (!args[1]->IsNumber())	fail("argument 1 needs to be a valid mapLength");
 
 			Nan::Utf8String path(args[0]);
 			unsigned int len = args[1]->Uint32Value();
@@ -75,15 +75,19 @@ namespace node_shared_mem {
 				fail("could not map: \"%s\"", *path);
 			}
 
-			auto buffer = ArrayBuffer::New(isolate, data, (size_t)len);
-			NodeSharedMem* obj = new NodeSharedMem(mapping, data, len);
+			SharedMemory* obj = new SharedMemory(mapping, data, len);
 
 			obj->Wrap(args.This());
+
+			auto buffer = ArrayBuffer::New(isolate, data, (size_t)len);
+			//auto mapName = String::NewFromUtf8(isolate, args[0]);
 			args.This()->Set(String::NewFromUtf8(isolate, "buffer"), buffer);
+			args.This()->Set(String::NewFromUtf8(isolate, "name"), args[0]);
+			args.This()->Set(String::NewFromUtf8(isolate, "length"), args[1]);
 			args.GetReturnValue().Set(args.This());
 		}
 		else {
-			// Invoked as plain function `MyObject(...)`, turn into construct call.
+			// Invoked as plain function `SharedMemory(...)`, turn into construct call.
 			const int argc = 1;
 			Local<Value> argv[argc] = { args[0] };
 			Local<Context> context = isolate->GetCurrentContext();
@@ -94,21 +98,26 @@ namespace node_shared_mem {
 		}
 	}
 
-	void NodeSharedMem::Close(const Nan::FunctionCallbackInfo<Value>& args) {
+	void SharedMemory::Close(const Nan::FunctionCallbackInfo<Value>& args) {
 		Isolate* isolate = args.GetIsolate();
-		NodeSharedMem* obj = ObjectWrap::Unwrap<NodeSharedMem>(args.Holder());
+		SharedMemory* obj = ObjectWrap::Unwrap<SharedMemory>(args.Holder());
+
+
 
 		if (!obj->handle) {
 			fail("already closed");
 		}
 		else {
-
 			UnmapViewOfFile(obj->ptr);
 			CloseHandle(obj->handle);
 			obj->ptr = nullptr;
 			obj->handle = nullptr;
+			args.Holder()->Delete(String::NewFromUtf8(isolate, "buffer"));
+			args.Holder()->Delete(String::NewFromUtf8(isolate, "name"));
+			args.Holder()->Delete(String::NewFromUtf8(isolate, "length"));
+		
 		}
 	}
 
-	NODE_MODULE(node_shared_mem, node_shared_mem::NodeSharedMem::Init)
+	NODE_MODULE(node_shared_mem, node_shared_mem::SharedMemory::Init)
 }

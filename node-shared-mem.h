@@ -7,13 +7,13 @@
 #include <WinBase.h>
 
 namespace node_shared_mem {
-	class NodeSharedMem : public node::ObjectWrap {
+	class SharedMemory : public node::ObjectWrap {
 		public:
 			static void Init(v8::Local<v8::Object> exports);
 
 		private:
-			explicit NodeSharedMem(HANDLE handle, void* ptr, unsigned int length);
-			~NodeSharedMem();
+			explicit SharedMemory(HANDLE handle, void* ptr, unsigned int length);
+			~SharedMemory();
 
 			static void New(const Nan::FunctionCallbackInfo<v8::Value>& args);
 			static void Close(const Nan::FunctionCallbackInfo<v8::Value>& args);
