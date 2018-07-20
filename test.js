@@ -15,7 +15,7 @@ function str(buffer, len) {
 }
 
 tape('does not crash', function (t) {
-  var len = 1 << 20;
+  var len = 40000;
   console.log(SharedMemory);
   var a = new SharedMemory.SharedMemory('testfile', len)
   console.log("name:    " + a.name)

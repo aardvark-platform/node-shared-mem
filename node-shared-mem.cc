@@ -42,12 +42,12 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
 	auto path = info[0].As<Napi::String>().Utf8Value();
 	auto len = (int64_t)info[1].As<Napi::Number>();
 
-	HANDLE mapping = OpenFileMapping(PAGE_READWRITE, false, path.c_str());
+	HANDLE mapping = OpenFileMapping(FILE_MAP_ALL_ACCESS, false, path.c_str());
 	if (mapping == nullptr) {
 		fail("could not open mapping \"%s\"", path.c_str());
 	}
 
-	void* data = MapViewOfFile(mapping, FILE_READ_ACCESS, 0, 0, len);
+	void* data = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, len);
 	if (data == nullptr) {
 		CloseHandle(mapping);
 		fail("could not map: \"%s\"", path.c_str());
