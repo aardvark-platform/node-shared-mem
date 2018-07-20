@@ -1,5 +1,7 @@
 var tape = require('tape')
-var SharedMemory = require('./build/Release/node_shared_mem.node')
+//var SharedMemory = require('bindings')('node_shared_mem')
+//require('./build/Release/node_shared_mem.node')
+var SharedMemory = require("./")
 
 function str(buffer, len) {
 	var a = new Uint8Array(buffer);
