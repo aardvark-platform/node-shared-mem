@@ -1,0 +1,21 @@
+{
+  "name": "node-shared-mem",
+  "version": "1.0.0",
+  "description": "Shared Memory Functions for node.js",
+  "dependencies": {
+    "nan": "^2.10.0",
+    "node-gyp-build": "^3.3.0"
+  },
+  "devDependencies": {
+    "prebuildify": "^2.6.0",
+    "standard": "^11.0.1",
+    "tape": "^4.9.0"
+  },
+  "scripts": {
+    "install": "node-gyp-build",
+    "test": "tape test.js",
+    "prebuild": "prebuildify --all --strip"
+  },
+  "author": "krauthaufen",
+  "license": "MIT"
+}
