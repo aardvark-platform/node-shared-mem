@@ -1,11 +1,29 @@
 #include <nan.h>
 #include <node.h>
+#include <memory>
+#include <iostream>
+#include <string>
+#include <cstdio>
 #include "node-shared-mem.h"
 
 using namespace v8;
 using namespace Nan;
 
 namespace node_shared_mem {
+
+	using namespace std; //Don't if you're in a header-file
+
+	template<typename ... Args>
+	static void seterror(const std::string& format, Args ... args) {
+		size_t size = snprintf(nullptr, 0, format.c_str(), args ...) + 1; // Extra space for '\0'
+		unique_ptr<char[]> buf(new char[size]);
+		snprintf(buf.get(), size, format.c_str(), args ...);
+		auto str = string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
+		Nan::ThrowError(str.c_str());
+	}
+
+	#define fail(...) { seterror(__VA_ARGS__); return; }
+
 	Nan::Persistent<Function> NodeSharedMem::constructor;
 
 	NodeSharedMem::NodeSharedMem(HANDLE handle, void* ptr, unsigned int length)
@@ -39,18 +57,23 @@ namespace node_shared_mem {
 
 		if (args.IsConstructCall()) {
 			// Invoked as constructor: `new MyObject(...)`
-			if (args.Length() < 2) return Nan::ThrowError("needs mapName and mapSize");
+			if (args.Length() < 2) fail("needs mapName and mapSize");
+			if (!args[0]->IsString()) fail("argument 0 needs to be a valid mapName");
+			if (!args[1]->IsNumber()) fail("argument 1 needs to be a valid mapLength");
 
 			Nan::Utf8String path(args[0]);
 			unsigned int len = args[1]->Uint32Value();
 
 			HANDLE mapping = OpenFileMapping(PAGE_READWRITE, false, *path);
 			if (mapping == 0) {
-				return Nan::ThrowError(Nan::New("could not map file").ToLocalChecked());
+				fail("could not open mapping \"%s\"", *path);
 			}
 
-			void* data = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
-
+			void* data = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+			if (data == nullptr) {
+				CloseHandle(mapping);
+				fail("could not open mapping: \"%s\"", *path);
+			}
 
 			auto buffer = ArrayBuffer::New(isolate, data, (size_t)len);
 			NodeSharedMem* obj = new NodeSharedMem(mapping, data, len);
@@ -73,60 +96,19 @@ namespace node_shared_mem {
 
 	void NodeSharedMem::Close(const Nan::FunctionCallbackInfo<Value>& args) {
 		Isolate* isolate = args.GetIsolate();
-
 		NodeSharedMem* obj = ObjectWrap::Unwrap<NodeSharedMem>(args.Holder());
 
-		UnmapViewOfFile(obj->ptr);
-		CloseHandle(obj->handle);
+		if (!obj->handle) {
+			fail("already closed");
+		}
+		else {
+
+			UnmapViewOfFile(obj->ptr);
+			CloseHandle(obj->handle);
+			obj->ptr = nullptr;
+			obj->handle = nullptr;
+		}
 	}
 
 	NODE_MODULE(node_shared_mem, node_shared_mem::NodeSharedMem::Init)
-	//NODE_MODULE(NODE_GYP_MODULE_NAME, node_shared_mem::NodeSharedMem::Init)
 }
-
-//
-//void fClose(const FunctionCallbackInfo<Value> &info)
-//{
-//	info.Data();
-//	UnmapViewOfFile();
-//	CloseHandle();
-//}
-//
-//NAN_METHOD(Print) {
-//	if (info.Length() < 2) return Nan::ThrowError("must pass a map-name and a map-size");
-//	if (!info[0]->IsString()) return Nan::ThrowError("argument 0 must be a map-name");
-//	if (!info[1]->IsNumber()) return Nan::ThrowError("argument 1 must be a map-size");
-//
-//	Nan::Utf8String path(info[0]);
-//	unsigned int len = info[1]->Uint32Value();
-//
-//	HANDLE mapping = OpenFileMapping(PAGE_READWRITE, false, *path);
-//	if(mapping == 0) { 
-//		return Nan::ThrowError(Nan::New("could not map file").ToLocalChecked()); 
-//	}
-//
-//	const void* data = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
-//
-//	printf("data: %s\n", data);
-//
-//	auto isolate = info.GetIsolate();
-//	auto buffer = ArrayBuffer::New(isolate, (void*)data, (size_t)len);
-//
-//	auto tpl = FunctionTemplate::New(isolate, fClose);
-//	auto close = tpl->GetFunction();
-//
-//	auto object = Object::New(isolate);
-//
-//	auto kBuffer = String::NewFromUtf8(isolate, "buffer", NewStringType::kInternalized);
-//	auto kClose = String::NewFromUtf8(isolate, "close", NewStringType::kInternalized);
-//	object->Set(kBuffer.ToLocalChecked(), buffer);
-//	object->Set(kClose.ToLocalChecked(), close);
-//
-//	info.GetReturnValue().Set(buffer);
-//}
-//
-//NAN_MODULE_INIT(InitAll) {
-//  Nan::Set(target, Nan::New<String>("print").ToLocalChecked(), Nan::GetFunction(Nan::New<FunctionTemplate>(Print)).ToLocalChecked());
-//}
-//
-//NODE_MODULE(a_native_module, InitAll)
