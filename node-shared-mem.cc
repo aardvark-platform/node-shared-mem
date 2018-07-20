@@ -65,14 +65,14 @@ namespace node_shared_mem {
 			unsigned int len = args[1]->Uint32Value();
 
 			HANDLE mapping = OpenFileMapping(PAGE_READWRITE, false, *path);
-			if (mapping == 0) {
+			if (mapping == nullptr) {
 				fail("could not open mapping \"%s\"", *path);
 			}
 
-			void* data = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+			void* data = MapViewOfFile(mapping, FILE_READ_ACCESS, 0, 0, len);
 			if (data == nullptr) {
 				CloseHandle(mapping);
-				fail("could not open mapping: \"%s\"", *path);
+				fail("could not map: \"%s\"", *path);
 			}
 
 			auto buffer = ArrayBuffer::New(isolate, data, (size_t)len);
