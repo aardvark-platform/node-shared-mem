@@ -18,7 +18,10 @@ static std::string format(const std::string& format, Args ... args) {
 	return str;
 }
 
-#define fail(...) { Napi::TypeError::New(env, format(__VA_ARGS__)).ThrowAsJavaScriptException(); return; }
+#define fail(...) { Napi::Error::New(env, format(__VA_ARGS__)).ThrowAsJavaScriptException(); return; }
+#define failt(...) { Napi::TypeError::New(env, format(__VA_ARGS__)).ThrowAsJavaScriptException(); return; }
+#define failv(...) { Napi::Error::New(env, format(__VA_ARGS__)).ThrowAsJavaScriptException(); return Napi::Value(); }
+
 
 
 
@@ -33,8 +36,8 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
 
 	// Invoked as constructor: `new MyObject(...)`
 	if (info.Length() < 2)		fail("needs mapName and mapSize");
-	if (!info[0].IsString())	fail("argument 0 needs to be a valid mapName");
-	if (!info[1].IsNumber())	fail("argument 1 needs to be a valid mapLength");
+	if (!info[0].IsString())	failt("argument 0 needs to be a valid mapName");
+	if (!info[1].IsNumber())	failt("argument 1 needs to be a valid mapLength");
 
 	auto path = info[0].As<Napi::String>().Utf8Value();
 	auto len = (int64_t)info[1].As<Napi::Number>();
@@ -55,9 +58,9 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
 	this->Value().Set("name", info[0]);
 	this->Value().Set("length", info[1]);
 
-	this->handle = handle;
-	this->ptr = ptr;
-	this->length = length;
+	this->handle = mapping;
+	this->ptr = data;
+	this->length = len;
 }
 
 
@@ -78,18 +81,38 @@ Napi::Value SharedMemory::Close(const Napi::CallbackInfo& info) {
 	
 	Napi::Env env = info.Env();
 
-	if (!this->handle) {
-		Napi::TypeError::New(env, "already closed").ThrowAsJavaScriptException();
-	}
-	else {
-		UnmapViewOfFile(this->ptr);
-		CloseHandle(this->handle);
+	if(this->ptr != nullptr) {
+		if(!UnmapViewOfFile(this->ptr)) {
+			failv("could not unmap");
+		}
 		this->ptr = nullptr;
-		this->handle = nullptr;
-		this->Value().Delete("buffer");
-		this->Value().Delete("name");
-		this->Value().Delete("length");
-	
 	}
+
+	if(this->handle != nullptr) {
+		if(!CloseHandle(this->handle)) {
+			failv("could not close mapping");
+		}
+		this->handle = nullptr;
+	}
+
+	this->Value().Delete("buffer");
+	this->Value().Delete("name");
+	this->Value().Delete("length");
+
+
+	// if (this->ptr == nullptr && this->handle == nullptr) {
+	// 	Napi::Error::New(env, "already closed").ThrowAsJavaScriptException();
+	// }
+	// else {
+	// 	UnmapViewOfFile(this->ptr);
+	// 	CloseHandle(this->handle);
+		
+	// 	this->ptr = nullptr;
+	// 	this->handle = nullptr;
+	// 	this->Value().Delete("buffer");
+	// 	this->Value().Delete("name");
+	// 	this->Value().Delete("length");
+	
+	// }
 	return Napi::Value();
 }

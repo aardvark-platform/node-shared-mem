@@ -16,11 +16,14 @@ let main argv =
     let arr = Encoding.UTF8.GetBytes "Hello From F#"
     Marshal.Copy(arr, 0, ptr, arr.Length) 
 
-    while true do
+    let mutable running = true
+    while running do
         printf "content# "
         let line = System.Console.ReadLine()
-        let arr = Encoding.UTF8.GetBytes line
-        Marshal.Copy(arr, 0, ptr, arr.Length) 
-        NativePtr.write (NativePtr.ofNativeInt (ptr + nativeint arr.Length)) 0uy
-        
+        if line <> "quit" then
+            let arr = Encoding.UTF8.GetBytes line
+            Marshal.Copy(arr, 0, ptr, arr.Length) 
+            NativePtr.write (NativePtr.ofNativeInt (ptr + nativeint arr.Length)) 0uy
+        else
+            running <- false
     0
