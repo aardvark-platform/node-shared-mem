@@ -5,7 +5,15 @@
 //#include <node_object_wrap.h>
 
 #include <napi.h>
+#if defined(_WIN32) || defined(WIN32)     
 #include <windows.h>
+typedef HANDLE HANDLE;
+#else 
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/mman.h>
+typedef key_t HANDLE;
+#endif
 
 class SharedMemory : public Napi::ObjectWrap<SharedMemory>{
 	public:

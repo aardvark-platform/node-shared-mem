@@ -14,6 +14,7 @@ function str(buffer, len) {
 	return res;
 }
 
+
 tape('does not crash', function (t) {
   var len = 40000;
   console.log(SharedMemory);

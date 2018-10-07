@@ -41,7 +41,7 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
 
 	auto path = info[0].As<Napi::String>().Utf8Value();
 	auto len = (int64_t)info[1].As<Napi::Number>();
-
+#ifdef _WIN32
 	HANDLE mapping = OpenFileMapping(FILE_MAP_ALL_ACCESS, false, path.c_str());
 	if (mapping == nullptr) {
 		fail("could not open mapping \"%s\"", path.c_str());
@@ -53,12 +53,28 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
 		fail("could not map: \"%s\"", path.c_str());
 	}
 
+	this->handle = mapping;
+#else
+	key_t key= ftok(path.c_str(), 'R');
+	key_t shmid = shmget(key,len,0777 | IPC_CREAT);
+	if(shmid == -1)
+	{
+		fail("could open mapping: \"%s\"", path.c_str());
+	}
+	void* data = shmat(shmid,NULL,0);
+	if(data == (void*)-1)
+	{
+		fail("could not map: \"%s\"", path.c_str());
+	}
+
+	this->handle = shmid;
+#endif
+
 	auto a = Napi::ArrayBuffer::New(env, data, (size_t)len);
 	this->Value().Set("buffer", a);
 	this->Value().Set("name", info[0]);
 	this->Value().Set("length", info[1]);
 
-	this->handle = mapping;
 	this->ptr = data;
 	this->length = len;
 }
@@ -81,6 +97,7 @@ Napi::Value SharedMemory::Close(const Napi::CallbackInfo& info) {
 	
 	Napi::Env env = info.Env();
 
+#ifdef _WIN32
 	if(this->ptr != nullptr) {
 		if(!UnmapViewOfFile(this->ptr)) {
 			failv("could not unmap");
@@ -94,6 +111,10 @@ Napi::Value SharedMemory::Close(const Napi::CallbackInfo& info) {
 		}
 		this->handle = nullptr;
 	}
+	#else
+	if(shmdt(this->ptr)==-1) failv("could not unmap");
+	if(shmctl(this->handle,IPC_RMID,NULL)==-1) failv("could not delete mapping");
+	#endif
 
 	this->Value().Delete("buffer");
 	this->Value().Delete("name");
