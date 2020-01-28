@@ -5,3 +5,4 @@ bin/
 obj/
 /server/.vs/Server/DesignTimeBuild/*.dtbcache
 /server/.vs/Server/v15/*.suo
+**/.ionide/

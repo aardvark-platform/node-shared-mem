@@ -9,23 +9,18 @@
 using namespace Napi;
 using namespace std; //Don't if you're in a header-file
 
-template<typename ... Args>
-static std::string format(const std::string& format, Args ... args) {
-	size_t size = snprintf(nullptr, 0, format.c_str(), args ...) + 1; // Extra space for '\0'
-	unique_ptr<char[]> buf(new char[size]);
-	snprintf(buf.get(), size, format.c_str(), args ...);
-	auto str = string(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
-	return str;
-}
 
-#define fail(...) { Napi::Error::New(env, format(__VA_ARGS__)).ThrowAsJavaScriptException(); return; }
-#define failt(...) { Napi::TypeError::New(env, format(__VA_ARGS__)).ThrowAsJavaScriptException(); return; }
-#define failv(...) { Napi::Error::New(env, format(__VA_ARGS__)).ThrowAsJavaScriptException(); return Napi::Value(); }
+#define failFormat(...) { \
+		size_t size = snprintf(nullptr, 0, __VA_ARGS__) + 1; \
+		unique_ptr<char[]> buf(new char[size]); \
+		snprintf(buf.get(), size, __VA_ARGS__); \
+		auto str = string(buf.get(), buf.get() + size - 1); \
+		Napi::Error::New(env, str).ThrowAsJavaScriptException(); \
+	}
 
-
-
-
-
+#define fail(...) { failFormat(__VA_ARGS__); return; }
+#define failt(...) { failFormat(__VA_ARGS__); return; }
+#define failv(...) { failFormat(__VA_ARGS__); return Napi::Value(); }
 
 Napi::FunctionReference SharedMemory::constructor;
 
@@ -39,6 +34,7 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
 	if (!info[0].IsString())	failt("argument 0 needs to be a valid mapName");
 	if (!info[1].IsNumber())	failt("argument 1 needs to be a valid mapLength");
 
+	//this->name = info[0].As<Napi::String>();
 	auto path = info[0].As<Napi::String>().Utf8Value();
 	auto len = (int64_t)info[1].As<Napi::Number>();
 #ifdef _WIN32
@@ -55,19 +51,54 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
 
 	this->handle = mapping;
 #else
-	key_t key= ftok(path.c_str(), 'R');
-	key_t shmid = shmget(key,len,0777 | IPC_CREAT);
-	if(shmid == -1)
-	{
+	
+	#if USE_POSIX
+	int key = shm_open(path.c_str(), O_RDONLY, 0644);
+	if (key < 0) {
 		fail("could open mapping: \"%s\"", path.c_str());
 	}
+
+	void* data = mmap(nullptr, len, 0x1, 0x1, key, 0);
+	if(data == nullptr) {
+		shm_unlink(path.c_str());
+		fail("could not mmap");
+	}
+	this->handle = key;
+	
+	#else
+	const char* folder = "/dev/shm";
+	struct stat sb;
+	char* filePath = new char[4096];
+	
+	if (stat(folder, &sb) == 0 && S_ISDIR(sb.st_mode)) {
+		sprintf(filePath, "/dev/shm/%s.shm", path.c_str());
+	}
+	else {
+		sprintf(filePath, "/tmp/%s.shm", path.c_str());
+	}
+
+	key_t key = ftok(filePath, 'R');
+	if(key < 0) {
+		fail("could open mapping: \"%s\" (%d)", filePath, errno);
+	}
+
+	key_t shmid = shmget(key, len, 0644);
+	if(shmid == -1)
+	{
+		fail("could open mapping: \"%s\" (%d)", filePath, errno);
+	}
+
 	void* data = shmat(shmid,NULL,0);
 	if(data == (void*)-1)
 	{
-		fail("could not map: \"%s\"", path.c_str());
+		fail("could not map: \"%s\"", filePath);
 	}
 
+	delete filePath;
 	this->handle = shmid;
+
+	#endif
+
 #endif
 
 	auto a = Napi::ArrayBuffer::New(env, data, (size_t)len);
@@ -111,10 +142,17 @@ Napi::Value SharedMemory::Close(const Napi::CallbackInfo& info) {
 		}
 		this->handle = nullptr;
 	}
+#else
+
+	#if USE_POSIX
+	if(munmap(this->ptr, this->length) != 0) { 
+		failv("could not unmap"); 
+	}
 	#else
-	if(shmdt(this->ptr)==-1) failv("could not unmap");
-	if(shmctl(this->handle,IPC_RMID,NULL)==-1) failv("could not delete mapping");
+	if(shmdt(this->ptr) != 0) { failv("could not unmap"); }
 	#endif
+
+#endif
 
 	this->Value().Delete("buffer");
 	this->Value().Delete("name");

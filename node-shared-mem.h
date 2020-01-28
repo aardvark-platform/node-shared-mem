@@ -12,6 +12,8 @@ typedef HANDLE HANDLE;
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/mman.h>
+#include <sys/stat.h>        /* For mode constants */
+#include <fcntl.h>
 typedef key_t HANDLE;
 #endif
 
