@@ -1,6 +1,6 @@
 {
   "name": "node-shared-mem",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Shared Memory Functions for node.js",
   "main": "addon.js",
   "gypfile": true,
