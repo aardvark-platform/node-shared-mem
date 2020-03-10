@@ -70,13 +70,17 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
 	struct stat sb;
 	char* filePath = new char[4096];
 	
+
+
 	if (stat(folder, &sb) == 0 && S_ISDIR(sb.st_mode)) {
 		sprintf(filePath, "/dev/shm/%s.shm", path.c_str());
 	}
 	else {
-		sprintf(filePath, "/tmp/%s.shm", path.c_str());
+		auto tmp = getenv("TMPDIR");
+		if(tmp) sprintf(filePath, "%s%s.shm", getenv("TMPDIR"), path.c_str());
+		else sprintf(filePath, "/tmp/%s.shm", path.c_str());
 	}
-
+	
 	key_t key = ftok(filePath, 'R');
 	if(key < 0) {
 		fail("could open mapping: \"%s\" (%d)", filePath, errno);
