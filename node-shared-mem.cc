@@ -9,6 +9,49 @@
 using namespace Napi;
 using namespace std; //Don't if you're in a header-file
 
+#ifdef _WIN32
+
+// trim from end of string (right)
+inline std::string& rtrim(std::string& s)
+{
+    s.erase(s.find_last_not_of(" \t\n\r\f\v") + 1);
+    return s;
+}
+
+// trim from beginning of string (left)
+inline std::string& ltrim(std::string& s)
+{
+    s.erase(0, s.find_first_not_of(" \t\n\r\f\v"));
+    return s;
+}
+
+// trim from both ends of string (right then left)
+inline std::string& trim(std::string& s)
+{
+    return ltrim(rtrim(s));
+}
+
+std::string GetLastErrorAsString()
+{
+    //Get the error message, if any.
+    DWORD errorMessageID = ::GetLastError();
+    if(errorMessageID == 0)
+        return std::string(); //No error message has been recorded
+
+    LPSTR messageBuffer = nullptr;
+    size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                                 NULL, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+
+    std::string message(messageBuffer, size);
+
+    //Free the buffer.
+    LocalFree(messageBuffer);
+
+    return trim(message);
+}
+
+#endif
+
 
 #define failFormat(...) { \
 		size_t size = snprintf(nullptr, 0, __VA_ARGS__) + 1; \
@@ -40,13 +83,15 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
 #ifdef _WIN32
 	HANDLE mapping = OpenFileMapping(FILE_MAP_ALL_ACCESS, false, path.c_str());
 	if (mapping == nullptr) {
-		fail("could not open mapping \"%s\"", path.c_str());
+		auto err = GetLastErrorAsString();
+		fail("[SharedMemory] could not open \"%s\" (ERROR: %s)", path.c_str(), err.c_str());
 	}
 
 	void* data = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, len);
 	if (data == nullptr) {
+		auto err = GetLastErrorAsString();
 		CloseHandle(mapping);
-		fail("could not map: \"%s\"", path.c_str());
+		fail("[SharedMemory] could not map: \"%s\" (ERROR: %s)", path.c_str(), err.c_str());
 	}
 
 	this->handle = mapping;
@@ -104,14 +149,17 @@ Napi::Value SharedMemory::Close(const Napi::CallbackInfo& info) {
 #ifdef _WIN32
 	if(this->ptr != nullptr) {
 		if(!UnmapViewOfFile(this->ptr)) {
-			failv("[SharedMemory] could not unmap \"%s\"", name);
+			auto err = GetLastErrorAsString();
+			CloseHandle(this->handle);
+			failv("[SharedMemory] could not unmap \"%s\" (ERROR: %s)", name, err.c_str());
 		}
 		this->ptr = nullptr;
 	}
 
 	if(this->handle != nullptr) {
 		if(!CloseHandle(this->handle)) {
-			failv("[SharedMemory] could not close mapping \"%s\"", name);
+			auto err = GetLastErrorAsString();
+			failv("[SharedMemory] could not close \"%s\" (ERROR: %s)", name, err.c_str());
 		}
 		this->handle = nullptr;
 	}
@@ -119,11 +167,12 @@ Napi::Value SharedMemory::Close(const Napi::CallbackInfo& info) {
 
 	if(this->ptr != nullptr) {
 		if(munmap(this->ptr, this->length) != 0) { 
+			close(this->handle);
 			failv("[SharedMemory] could not unmap \"%s\" (ERROR: %s)", name, strerror(errno)); 
 		}
 		this->ptr = nullptr;
 	}
-	if(this->handle != 0 && hasName) {
+	if(this->handle != 0) {
 		if(close(this->handle) != 0) {
 			failv("[SharedMemory] could not close \"%s\" (ERROR: %s)", name, strerror(errno)); 
 		}

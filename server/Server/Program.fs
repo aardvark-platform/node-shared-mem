@@ -31,9 +31,8 @@ module SharedMemory =
                 member x.Pointer = x.data
                 member x.Size = x.size
 
-        let create (size : int64) =
-            let name = Guid.NewGuid() |> string
-            let file = MemoryMappedFile.CreateNew(name, size)
+        let create (name : string) (size : int64) =
+            let file = MemoryMappedFile.CreateOrOpen(name, size)
             let view = file.CreateViewAccessor()
 
             {
@@ -168,13 +167,14 @@ module SharedMemory =
 
         [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
         extern int close(FileHandle fd)
-
+        
+        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
+        extern string strerror(int code)
 
 
         let create (name : string) (size : int64) =
             // open the shared memory (or create if not existing)
             let mapName = "/" + name;
-            let name = ()
             shmunlink(mapName) |> ignore
             
             let flags = SharedMemoryFlags.Truncate ||| SharedMemoryFlags.Create ||| SharedMemoryFlags.ReadWrite
@@ -183,24 +183,21 @@ module SharedMemory =
 
             let fd = shmopen(mapName, flags, perm)
             if not fd.IsValid then 
-                let err = Marshal.GetLastWin32Error() |> unbox<ErrorCode>
-                failwithf "[SharedMemory] could not open %s (ERROR: %A)" mapName err
+                let err = Marshal.GetLastWin32Error() |> strerror
+                failwithf "[SharedMemory] could not open \"%s\" (ERROR: %s)" name err
 
             // set the size
             if ftruncate(fd, unativeint size) <> 0 then 
-                let err = Marshal.GetLastWin32Error() |> unbox<ErrorCode>
+                let err = Marshal.GetLastWin32Error() |> strerror
                 shmunlink(mapName) |> ignore
-                failwithf "[SharedMemory] could resize %s (%A) to %d bytes (ERROR: %A)" mapName fd size err
+                failwithf "[SharedMemory] could resize \"%s\" to %d bytes (ERROR: %s)" name size err
 
             // map the memory into our memory
             let ptr = mmap(0n, unativeint size, Protection.ReadWrite, MapFlags.Shared, fd, 0un)
             if ptr = -1n then 
-                let err = Marshal.GetLastWin32Error() |> unbox<ErrorCode>
+                let err = Marshal.GetLastWin32Error() |> strerror
                 shmunlink(mapName) |> ignore
-                failwithf "[SharedMemory] could not map %s (%A) (ERROR: %A)" mapName fd err
-
-            printfn "%s %A %db (0x%X)" mapName perm size ptr
-            
+                failwithf "[SharedMemory] could not map \"%s\" (ERROR: %s)" name err
 
             { new ISharedMemory with
                 member x.Pointer = ptr
@@ -208,26 +205,26 @@ module SharedMemory =
                 member x.Dispose() =
                     let err = munmap(ptr, unativeint size)
                     if err <> 0 then
-                        let err = Marshal.GetLastWin32Error()
+                        let err = Marshal.GetLastWin32Error() |> strerror
                         close(fd) |> ignore
                         shmunlink(mapName) |> ignore
-                        failwithf "[SharedMemory] could not unmap %s (%A) (ERROR: %A)" mapName fd err
+                        failwithf "[SharedMemory] could not unmap \"%s\" (ERROR: %s)" name err
 
                     if close(fd) <> 0 then
-                        let err = Marshal.GetLastWin32Error()
+                        let err = Marshal.GetLastWin32Error() |> strerror
                         shmunlink(mapName) |> ignore
-                        failwithf "[SharedMemory] could not close %s (%A) (ERROR: %A)" mapName fd err
+                        failwithf "[SharedMemory] could not close \"%s\" (ERROR: %s)" name err
 
                     let err = shmunlink(mapName)
                     if err <> 0 then
-                        let err = Marshal.GetLastWin32Error()
-                        failwithf "[SharedMemory] could not unlink %s (%A) (ERROR: %A)" mapName fd err
+                        let err = Marshal.GetLastWin32Error() |> strerror
+                        failwithf "[SharedMemory] could not unlink %s (ERROR: %s)" name err
             }
 
 
     let create (name : string) (size : int64) =
         if RuntimeInformation.IsOSPlatform(OSPlatform.Windows) then 
-            Windows.create size
+            Windows.create name size
         elif RuntimeInformation.IsOSPlatform(OSPlatform.OSX) then
             Posix.create name size        
         elif RuntimeInformation.IsOSPlatform(OSPlatform.Linux) then
