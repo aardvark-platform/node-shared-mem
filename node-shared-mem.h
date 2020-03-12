@@ -9,6 +9,7 @@
 #include <windows.h>
 typedef HANDLE HANDLE;
 #else 
+#include <unistd.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/mman.h>

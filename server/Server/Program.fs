@@ -43,25 +43,103 @@ module SharedMemory =
                 data = view.SafeMemoryMappedViewHandle.DangerousGetHandle()
             } :> ISharedMemory
 
-    [<System.Diagnostics.CodeAnalysis.SuppressMessage("NameConventions", "*")>]
-    module private Linux =
+    [<System.Diagnostics.CodeAnalysis.SuppressMessage("NameConventions", "")>]
+    module private Posix =
 
-        open System.IO
- 
-        let PROT_READ = 0x01
-        let PROT_WRITE = 0x02
-        let PROT_EXEC = 0x04
 
-        let MAP_SHARED = 0x001
+        [<Flags>]
+        type Protection =
+            | Read = 0x01
+            | Write = 0x02
+            | Execute = 0x04
 
-        let O_RDONLY = 0x0
-        let O_WRONLY = 0x1
-        let O_RDWR = 0x2
-        let O_CREAT = 0x40             
+            | ReadWrite = 0x03
+            | ReadExecute = 0x05
+            | ReadWriteExecute = 0x07
 
-        let IPC_RMID = 0
+        [<StructLayout(LayoutKind.Sequential); StructuredFormatDisplay("{AsString}")>]
+        type FileHandle =
+            struct
+                val mutable public Id : int
+                override x.ToString() = sprintf "f%d" x.Id
+                member private x.AsString = x.ToString()
+                member x.IsValid = x.Id >= 0
+            end        
 
-        let IPC_CREAT = 0x200
+        [<StructLayout(LayoutKind.Sequential); StructuredFormatDisplay("{AsString}")>]
+        type Permission =
+            struct
+                val mutable public Mask : uint32
+
+                member x.Owner
+                    with get() = 
+                        (x.Mask >>> 6) &&& 7u |> int |> unbox<Protection>
+                    and set (v : Protection) =  
+                        x.Mask <- (x.Mask &&& 0xFFFFFE3Fu) ||| ((uint32 v &&& 7u) <<< 6)
+
+                member x.Group
+                    with get() = 
+                        (x.Mask >>> 3) &&& 7u |> int |> unbox<Protection>
+                    and set (v : Protection) =  
+                        x.Mask <- (x.Mask &&& 0xFFFFFFC7u) ||| ((uint32 v &&& 7u) <<< 3)
+
+                member x.Other
+                    with get() = 
+                        (x.Mask) &&& 7u |> int |> unbox<Protection>
+                    and set (v : Protection) =  
+                        x.Mask <- (x.Mask &&& 0xFFFFFFF8u) ||| (uint32 v &&& 7u)
+
+
+                member private x.AsString = x.ToString()
+                override x.ToString() =
+                    let u = x.Owner
+                    let g = x.Group
+                    let o = x.Other
+
+                    let inline str (p : Protection) =
+                        (if p.HasFlag Protection.Execute then "x" else "-") +
+                        (if p.HasFlag Protection.Write then "w" else "-") +
+                        (if p.HasFlag Protection.Read then "r" else "-")
+
+                    str u + str g + str o
+
+                new(u : Protection, g : Protection, o : Protection) =
+                    {
+                        Mask = ((uint32 u &&& 7u) <<< 6) ||| ((uint32 g &&& 7u) <<< 3) ||| (uint32 o &&& 7u)
+                    }
+
+            end
+
+
+        [<Flags>]        
+        type MapFlags =    
+            | Shared = 0x0001
+            | Private = 0x0002
+            | Fixed = 0x0010
+            | Rename = 0x0020
+            | NoReserve = 0x0040
+            | NoExtend = 0x0100
+            | HasSemaphore = 0x0200
+            | NoCache = 0x0400
+            | Jit = 0x0800
+            | Anonymous = 0x1000 
+
+        [<Flags>] 
+        type SharedMemoryFlags =
+            | SharedLock = 0x0010
+            | ExclusiveLock = 0x0020
+            | Async = 0x0040
+            | NoFollow = 0x0100
+            | Create = 0x0200
+            | Truncate = 0x0400
+            | Exclusive = 0x0800
+            | NonBlocking = 0x0004
+            | Append = 0x0008        
+
+            | ReadOnly = 0x0000
+            | WriteOnly = 0x0001
+            | ReadWrite = 0x0002
+
 
         type ErrorCode =
             | NoPermission = 1
@@ -73,119 +151,93 @@ module SharedMemory =
             | ArgListTooLong = 7
             | ExecFormatError = 8
 
-        [<DllImport("librt", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern int shm_open(string name, int oflag, int mode)
+        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="shm_open")>]
+        extern FileHandle shmopen(string name, SharedMemoryFlags oflag, Permission mode)
         
         [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern nativeint mmap(nativeint addr, unativeint size, int prot, int flags, int fd, unativeint offset)
+        extern nativeint mmap(nativeint addr, unativeint size, Protection prot, MapFlags flags, FileHandle fd, unativeint offset)
 
         [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
         extern int munmap(nativeint ptr, unativeint size)
 
-        [<DllImport("librt", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern int shm_unlink(string name)
-
-        [<DllImport("librt", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern int ftruncate(int fd, unativeint size)
-
-
-
+        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="shm_unlink")>]
+        extern int shmunlink(string name)
 
         [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern int ftok(string name, int projId)
+        extern int ftruncate(FileHandle fd, unativeint size)
 
         [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern int shmget(int key, int size, int shmflag)
-
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern int shmdt(nativeint shmaddr)        
-
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern nativeint shmat(int shm, nativeint shmaddr, int shmflag)
-
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern int shmctl(int shmid, int cmd,  nativeint buf)
-
-        let inline check (name : string) v =
-            if v <> LanguagePrimitives.GenericZero then
-                let err = Marshal.GetLastWin32Error() |> unbox<ErrorCode>
-                failwithf "%s failed with %A (%A)" name v err
+        extern int close(FileHandle fd)
 
 
-        let inline checkPos (name : string) v =
-            if v < LanguagePrimitives.GenericZero then
-                let err = Marshal.GetLastWin32Error() |> unbox<ErrorCode>
-                failwithf "%s failed with %A (%A)" name v err
 
-        let perm (f : int) (u : int) (g : int) (o : int) =
-            ((f &&& 7) <<< 9) ||| 
-            ((u &&& 7) <<< 6) ||| 
-            ((g &&& 7) <<< 3) ||| 
-            (o % 8)
-
-        let createPosix (name : string) (size : int64) =
+        let create (name : string) (size : int64) =
             // open the shared memory (or create if not existing)
-            let fd = shm_open(name, O_CREAT ||| O_RDWR, perm 0 6 4 4)
-            fd |> checkPos "shm_open"
+            let mapName = "/" + name;
+            let name = ()
+            shmunlink(mapName) |> ignore
+            
+            let flags = SharedMemoryFlags.Truncate ||| SharedMemoryFlags.Create ||| SharedMemoryFlags.ReadWrite
+            let perm = Permission(Protection.ReadWriteExecute, Protection.ReadWriteExecute, Protection.ReadWriteExecute)
+
+
+            let fd = shmopen(mapName, flags, perm)
+            if not fd.IsValid then 
+                let err = Marshal.GetLastWin32Error() |> unbox<ErrorCode>
+                failwithf "[SharedMemory] could not open %s (ERROR: %A)" mapName err
 
             // set the size
             if ftruncate(fd, unativeint size) <> 0 then 
                 let err = Marshal.GetLastWin32Error() |> unbox<ErrorCode>
-                shm_unlink(name) |> check "shm_unlink"
-                failwithf "could not set file size for %d (%A)" fd err
+                shmunlink(mapName) |> ignore
+                failwithf "[SharedMemory] could resize %s (%A) to %d bytes (ERROR: %A)" mapName fd size err
 
             // map the memory into our memory
-            let ptr = mmap(0n, unativeint size, PROT_WRITE ||| PROT_READ, MAP_SHARED, fd, 0un)
+            let ptr = mmap(0n, unativeint size, Protection.ReadWrite, MapFlags.Shared, fd, 0un)
             if ptr = -1n then 
                 let err = Marshal.GetLastWin32Error() |> unbox<ErrorCode>
-                shm_unlink(name) |> check "shm_unlink"
-                failwithf "could not map %d: %A" fd err
+                shmunlink(mapName) |> ignore
+                failwithf "[SharedMemory] could not map %s (%A) (ERROR: %A)" mapName fd err
 
+            printfn "%s %A %db (0x%X)" mapName perm size ptr
             
 
             { new ISharedMemory with
                 member x.Pointer = ptr
                 member x.Size = size
                 member x.Dispose() =
-                    munmap(ptr, unativeint size) |> check "munmap"
-                    shm_unlink(name) |> check "munmap"
+                    let err = munmap(ptr, unativeint size)
+                    if err <> 0 then
+                        let err = Marshal.GetLastWin32Error()
+                        close(fd) |> ignore
+                        shmunlink(mapName) |> ignore
+                        failwithf "[SharedMemory] could not unmap %s (%A) (ERROR: %A)" mapName fd err
+
+                    if close(fd) <> 0 then
+                        let err = Marshal.GetLastWin32Error()
+                        shmunlink(mapName) |> ignore
+                        failwithf "[SharedMemory] could not close %s (%A) (ERROR: %A)" mapName fd err
+
+                    let err = shmunlink(mapName)
+                    if err <> 0 then
+                        let err = Marshal.GetLastWin32Error()
+                        failwithf "[SharedMemory] could not unlink %s (%A) (ERROR: %A)" mapName fd err
             }
 
-        let create (name : string) (size : int64) =
-            let p = 
-                if Directory.Exists "/dev/shm" then Path.Combine("/dev/shm", name + ".shm")
-                else Path.Combine(Path.GetTempPath(), name + ".shm")
-
-            File.WriteAllText(p, "")
-
-            let tok = ftok(p, int 'R') //s.SafeFileHandle.DangerousGetHandle() |> int 
-            tok |> checkPos "ftok"
-
-            let shm = shmget(tok, int size, perm 1 6 4 4)
-            shm |> checkPos "shmget"
-
-            let ptr = shmat(shm, 0n, 0)
-            ptr |> checkPos "shmat"
-
-            { new ISharedMemory with
-                member x.Pointer = ptr
-                member x.Size = size
-                member x.Dispose() =
-                    shmdt(ptr) |> check "shmdt"
-                    shmctl(shm, IPC_RMID, 0n) |> checkPos "shmctl"
-                    File.Delete p
-            }
 
     let create (name : string) (size : int64) =
         if RuntimeInformation.IsOSPlatform(OSPlatform.Windows) then 
             Windows.create size
-        else 
-            Linux.create name size
-
+        elif RuntimeInformation.IsOSPlatform(OSPlatform.OSX) then
+            Posix.create name size        
+        elif RuntimeInformation.IsOSPlatform(OSPlatform.Linux) then
+            Posix.create name size
+        else
+            failwith "[SharedMemory] unknown platform"
 
 [<EntryPoint>]
 let main argv =
-    use f = SharedMemory.create "testfile" (1L <<< 20)
+    use f = SharedMemory.create "testfile" (4L <<< 20)
     let ptr = f.Pointer
 
     let arr = Encoding.UTF8.GetBytes "Hello From F#"

@@ -52,56 +52,21 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
 	this->handle = mapping;
 #else
 	
-	#if USE_POSIX
-	int key = shm_open(path.c_str(), O_RDONLY, 0644);
+    char filePath[4096];
+    sprintf(filePath, "/%s", path.c_str());
+    
+	int key = shm_open(filePath, O_RDWR);
 	if (key < 0) {
-		fail("could open mapping: \"%s\"", path.c_str());
+		fail("[SharedMemory] could open \"%s\" (ERROR: %s)", path.c_str(), strerror(errno));
 	}
 
-	void* data = mmap(nullptr, len, 0x1, 0x1, key, 0);
+	void* data = mmap(nullptr, len, 0x3, MAP_SHARED, key, 0);
 	if(data == nullptr) {
 		shm_unlink(path.c_str());
-		fail("could not mmap");
+		fail("[SharedMemory] could not map \"%s\" (f%d) (ERROR: %s)", path.c_str(), key, strerror(errno));
 	}
 	this->handle = key;
 	
-	#else
-	const char* folder = "/dev/shm";
-	struct stat sb;
-	char* filePath = new char[4096];
-	
-
-
-	if (stat(folder, &sb) == 0 && S_ISDIR(sb.st_mode)) {
-		sprintf(filePath, "/dev/shm/%s.shm", path.c_str());
-	}
-	else {
-		auto tmp = getenv("TMPDIR");
-		if(tmp) sprintf(filePath, "%s%s.shm", getenv("TMPDIR"), path.c_str());
-		else sprintf(filePath, "/tmp/%s.shm", path.c_str());
-	}
-	
-	key_t key = ftok(filePath, 'R');
-	if(key < 0) {
-		fail("could open mapping: \"%s\" (%d)", filePath, errno);
-	}
-
-	key_t shmid = shmget(key, len, 0644);
-	if(shmid == -1)
-	{
-		fail("could open mapping: \"%s\" (%d)", filePath, errno);
-	}
-
-	void* data = shmat(shmid,NULL,0);
-	if(data == (void*)-1)
-	{
-		fail("could not map: \"%s\"", filePath);
-	}
-
-	delete filePath;
-	this->handle = shmid;
-
-	#endif
 
 #endif
 
@@ -132,30 +97,38 @@ Napi::Value SharedMemory::Close(const Napi::CallbackInfo& info) {
 	
 	Napi::Env env = info.Env();
 
+	auto hasName = this->Value().Get("name").IsString();
+	auto name = "UNKNOWN";
+	if(hasName) name = this->Value().Get("name").As<Napi::String>().Utf8Value().c_str();
+
 #ifdef _WIN32
 	if(this->ptr != nullptr) {
 		if(!UnmapViewOfFile(this->ptr)) {
-			failv("could not unmap");
+			failv("[SharedMemory] could not unmap \"%s\"", name);
 		}
 		this->ptr = nullptr;
 	}
 
 	if(this->handle != nullptr) {
 		if(!CloseHandle(this->handle)) {
-			failv("could not close mapping");
+			failv("[SharedMemory] could not close mapping \"%s\"", name);
 		}
 		this->handle = nullptr;
 	}
 #else
 
-	#if USE_POSIX
-	if(munmap(this->ptr, this->length) != 0) { 
-		failv("could not unmap"); 
+	if(this->ptr != nullptr) {
+		if(munmap(this->ptr, this->length) != 0) { 
+			failv("[SharedMemory] could not unmap \"%s\" (ERROR: %s)", name, strerror(errno)); 
+		}
+		this->ptr = nullptr;
 	}
-	#else
-	if(shmdt(this->ptr) != 0) { failv("could not unmap"); }
-	#endif
-
+	if(this->handle != 0 && hasName) {
+		if(close(this->handle) != 0) {
+			failv("[SharedMemory] could not close \"%s\" (ERROR: %s)", name, strerror(errno)); 
+		}
+		this->handle = 0;
+	}
 #endif
 
 	this->Value().Delete("buffer");
@@ -163,19 +136,5 @@ Napi::Value SharedMemory::Close(const Napi::CallbackInfo& info) {
 	this->Value().Delete("length");
 
 
-	// if (this->ptr == nullptr && this->handle == nullptr) {
-	// 	Napi::Error::New(env, "already closed").ThrowAsJavaScriptException();
-	// }
-	// else {
-	// 	UnmapViewOfFile(this->ptr);
-	// 	CloseHandle(this->handle);
-		
-	// 	this->ptr = nullptr;
-	// 	this->handle = nullptr;
-	// 	this->Value().Delete("buffer");
-	// 	this->Value().Delete("name");
-	// 	this->Value().Delete("length");
-	
-	// }
 	return Napi::Value();
 }
