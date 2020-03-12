@@ -10,6 +10,15 @@
     "include_dirs": [
       "<!@(node -p \"require('node-addon-api').include\")"
     ],
+    "conditions": [
+        ["OS=='linux'", {
+          "link_settings": {
+              "libraries": [
+                "-lrt"
+                ]
+          },
+        }]
+    ],
     'defines': [ 'NAPI_DISABLE_CPP_EXCEPTIONS' ],
   }]
 }

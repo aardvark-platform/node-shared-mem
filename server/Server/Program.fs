@@ -110,127 +110,210 @@ module SharedMemory =
             end
 
 
-        [<Flags>]        
-        type MapFlags =    
-            | Shared = 0x0001
-            | Private = 0x0002
-            | Fixed = 0x0010
-            | Rename = 0x0020
-            | NoReserve = 0x0040
-            | NoExtend = 0x0100
-            | HasSemaphore = 0x0200
-            | NoCache = 0x0400
-            | Jit = 0x0800
-            | Anonymous = 0x1000 
-
-        [<Flags>] 
-        type SharedMemoryFlags =
-            | SharedLock = 0x0010
-            | ExclusiveLock = 0x0020
-            | Async = 0x0040
-            | NoFollow = 0x0100
-            | Create = 0x0200
-            | Truncate = 0x0400
-            | Exclusive = 0x0800
-            | NonBlocking = 0x0004
-            | Append = 0x0008        
-
-            | ReadOnly = 0x0000
-            | WriteOnly = 0x0001
-            | ReadWrite = 0x0002
 
 
-        type ErrorCode =
-            | NoPermission = 1
-            | NoSuchFileOrDirectory = 2
-            | NoSuchProcess = 3
-            | InterruptedSystemCall = 4
-            | IOError = 5
-            | NoSuchDeviceOrAddress = 6
-            | ArgListTooLong = 7
-            | ExecFormatError = 8
+        [<System.Diagnostics.CodeAnalysis.SuppressMessage("NameConventions", "")>]
+        module Mac =
+            [<Flags>]        
+            type MapFlags =    
+                | Shared = 0x0001
+                | Private = 0x0002
+                | Fixed = 0x0010
+                | Rename = 0x0020
+                | NoReserve = 0x0040
+                | NoExtend = 0x0100
+                | HasSemaphore = 0x0200
+                | NoCache = 0x0400
+                | Jit = 0x0800
+                | Anonymous = 0x1000 
 
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="shm_open")>]
-        extern FileHandle shmopen(string name, SharedMemoryFlags oflag, Permission mode)
-        
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern nativeint mmap(nativeint addr, unativeint size, Protection prot, MapFlags flags, FileHandle fd, unativeint offset)
+            [<Flags>] 
+            type SharedMemoryFlags =
+                | SharedLock = 0x0010
+                | ExclusiveLock = 0x0020
+                | Async = 0x0040
+                | NoFollow = 0x0100
+                | Create = 0x0200
+                | Truncate = 0x0400
+                | Exclusive = 0x0800
+                | NonBlocking = 0x0004
+                | Append = 0x0008        
 
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern int munmap(nativeint ptr, unativeint size)
+                | ReadOnly = 0x0000
+                | WriteOnly = 0x0001
+                | ReadWrite = 0x0002
 
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="shm_unlink")>]
-        extern int shmunlink(string name)
-
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern int ftruncate(FileHandle fd, unativeint size)
-
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern int close(FileHandle fd)
-        
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="strerror")>]
-        extern nativeint strerrorInternal(int code)
-
-        let inline strerror (code : int) =
-            strerrorInternal code |> Marshal.PtrToStringAnsi
-
-
-        let create (name : string) (size : int64) =
-            // open the shared memory (or create if not existing)
-            let mapName = "/" + name;
-            shmunlink(mapName) |> ignore
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="shm_open")>]
+            extern FileHandle shmopen(string name, SharedMemoryFlags oflag, Permission mode)
             
-            let flags = SharedMemoryFlags.Truncate ||| SharedMemoryFlags.Create ||| SharedMemoryFlags.ReadWrite
-            let perm = Permission(Protection.ReadWriteExecute, Protection.ReadWriteExecute, Protection.ReadWriteExecute)
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
+            extern nativeint mmap(nativeint addr, unativeint size, Protection prot, MapFlags flags, FileHandle fd, unativeint offset)
 
-            let fd = shmopen(mapName, flags, perm)
-            if not fd.IsValid then 
-                let err = Marshal.GetLastWin32Error() |> strerror
-                failwithf "[SharedMemory] could not open \"%s\" (ERROR: %s)" name err
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
+            extern int munmap(nativeint ptr, unativeint size)
 
-            // set the size
-            if ftruncate(fd, unativeint size) <> 0 then 
-                let err = Marshal.GetLastWin32Error() |> strerror
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="shm_unlink")>]
+            extern int shmunlink(string name)
+
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
+            extern int ftruncate(FileHandle fd, unativeint size)
+
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
+            extern int close(FileHandle fd)
+            
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="strerror")>]
+            extern nativeint strerrorInternal(int code)
+
+            let inline strerror (code : int) =
+                strerrorInternal code |> Marshal.PtrToStringAnsi
+
+
+            let create (name : string) (size : int64) =
+                // open the shared memory (or create if not existing)
+                let mapName = "/" + name;
                 shmunlink(mapName) |> ignore
-                failwithf "[SharedMemory] could resize \"%s\" to %d bytes (ERROR: %s)" name size err
+                
+                let flags = SharedMemoryFlags.Truncate ||| SharedMemoryFlags.Create ||| SharedMemoryFlags.ReadWrite
+                let perm = Permission(Protection.ReadWriteExecute, Protection.ReadWriteExecute, Protection.ReadWriteExecute)
 
-            // map the memory into our memory
-            let ptr = mmap(0n, unativeint size, Protection.ReadWrite, MapFlags.Shared, fd, 0un)
-            if ptr = -1n then 
-                let err = Marshal.GetLastWin32Error() |> strerror
+                let fd = shmopen(mapName, flags, perm)
+                if not fd.IsValid then 
+                    let err = Marshal.GetLastWin32Error() |> strerror
+                    failwithf "[SharedMemory] could not open \"%s\" (ERROR: %s)" name err
+
+                // set the size
+                if ftruncate(fd, unativeint size) <> 0 then 
+                    let err = Marshal.GetLastWin32Error() |> strerror
+                    shmunlink(mapName) |> ignore
+                    failwithf "[SharedMemory] could resize \"%s\" to %d bytes (ERROR: %s)" name size err
+
+                // map the memory into our memory
+                let ptr = mmap(0n, unativeint size, Protection.ReadWrite, MapFlags.Shared, fd, 0un)
+                if ptr = -1n then 
+                    let err = Marshal.GetLastWin32Error() |> strerror
+                    shmunlink(mapName) |> ignore
+                    failwithf "[SharedMemory] could not map \"%s\" (ERROR: %s)" name err
+
+                { new ISharedMemory with
+                    member x.Pointer = ptr
+                    member x.Size = size
+                    member x.Dispose() =
+                        let err = munmap(ptr, unativeint size)
+                        if err <> 0 then
+                            let err = Marshal.GetLastWin32Error() |> strerror
+                            close(fd) |> ignore
+                            shmunlink(mapName) |> ignore
+                            failwithf "[SharedMemory] could not unmap \"%s\" (ERROR: %s)" name err
+
+                        if close(fd) <> 0 then
+                            let err = Marshal.GetLastWin32Error() |> strerror
+                            shmunlink(mapName) |> ignore
+                            failwithf "[SharedMemory] could not close \"%s\" (ERROR: %s)" name err
+
+                        let err = shmunlink(mapName)
+                        if err <> 0 then
+                            let err = Marshal.GetLastWin32Error() |> strerror
+                            failwithf "[SharedMemory] could not unlink %s (ERROR: %s)" name err
+                }
+
+
+        [<System.Diagnostics.CodeAnalysis.SuppressMessage("NameConventions", "")>]
+        module Linux =
+            [<Flags>]
+            type MapFlags =
+                | Shared = 0x1
+                | Private = 0x2
+                | Fixed = 0x10
+
+            [<Flags>]
+            type SharedMemoryFlags =
+                | Create = 0x40
+                | Truncate = 0x200
+                | Exclusive = 0x80
+                | ReadOnly = 0x0
+                | WriteOnly = 0x1
+                | ReadWrite = 0x2
+
+            [<DllImport("librt", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="shm_open")>]
+            extern FileHandle shmopen(string name, SharedMemoryFlags oflag, Permission mode)
+            
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
+            extern nativeint mmap(nativeint addr, unativeint size, Protection prot, MapFlags flags, FileHandle fd, unativeint offset)
+
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
+            extern int munmap(nativeint ptr, unativeint size)
+
+            [<DllImport("librt", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="shm_unlink")>]
+            extern int shmunlink(string name)
+
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
+            extern int ftruncate(FileHandle fd, unativeint size)
+
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
+            extern int close(FileHandle fd)
+            
+            [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="strerror")>]
+            extern nativeint strerrorInternal(int code)
+
+            let inline strerror (code : int) =
+                strerrorInternal code |> Marshal.PtrToStringAnsi
+
+
+            let create (name : string) (size : int64) =
+                // open the shared memory (or create if not existing)
+                let mapName = "/" + name;
                 shmunlink(mapName) |> ignore
-                failwithf "[SharedMemory] could not map \"%s\" (ERROR: %s)" name err
+                
+                let flags = SharedMemoryFlags.Truncate ||| SharedMemoryFlags.Create ||| SharedMemoryFlags.ReadWrite
+                let perm = Permission(Protection.ReadWriteExecute, Protection.ReadWriteExecute, Protection.ReadWriteExecute)
 
-            { new ISharedMemory with
-                member x.Pointer = ptr
-                member x.Size = size
-                member x.Dispose() =
-                    let err = munmap(ptr, unativeint size)
-                    if err <> 0 then
-                        let err = Marshal.GetLastWin32Error() |> strerror
-                        close(fd) |> ignore
-                        shmunlink(mapName) |> ignore
-                        failwithf "[SharedMemory] could not unmap \"%s\" (ERROR: %s)" name err
+                let fd = shmopen(mapName, flags, perm)
+                if not fd.IsValid then 
+                    let err = Marshal.GetLastWin32Error() |> strerror
+                    failwithf "[SharedMemory] could not open \"%s\" (ERROR: %s)" name err
 
-                    if close(fd) <> 0 then
-                        let err = Marshal.GetLastWin32Error() |> strerror
-                        shmunlink(mapName) |> ignore
-                        failwithf "[SharedMemory] could not close \"%s\" (ERROR: %s)" name err
+                // set the size
+                if ftruncate(fd, unativeint size) <> 0 then 
+                    let err = Marshal.GetLastWin32Error() |> strerror
+                    shmunlink(mapName) |> ignore
+                    failwithf "[SharedMemory] could resize \"%s\" to %d bytes (ERROR: %s)" name size err
 
-                    let err = shmunlink(mapName)
-                    if err <> 0 then
-                        let err = Marshal.GetLastWin32Error() |> strerror
-                        failwithf "[SharedMemory] could not unlink %s (ERROR: %s)" name err
-            }
+                // map the memory into our memory
+                let ptr = mmap(0n, unativeint size, Protection.ReadWrite, MapFlags.Shared, fd, 0un)
+                if ptr = -1n then 
+                    let err = Marshal.GetLastWin32Error() |> strerror
+                    shmunlink(mapName) |> ignore
+                    failwithf "[SharedMemory] could not map \"%s\" (ERROR: %s)" name err
 
+                { new ISharedMemory with
+                    member x.Pointer = ptr
+                    member x.Size = size
+                    member x.Dispose() =
+                        let err = munmap(ptr, unativeint size)
+                        if err <> 0 then
+                            let err = Marshal.GetLastWin32Error() |> strerror
+                            close(fd) |> ignore
+                            shmunlink(mapName) |> ignore
+                            failwithf "[SharedMemory] could not unmap \"%s\" (ERROR: %s)" name err
+
+                        if close(fd) <> 0 then
+                            let err = Marshal.GetLastWin32Error() |> strerror
+                            shmunlink(mapName) |> ignore
+                            failwithf "[SharedMemory] could not close \"%s\" (ERROR: %s)" name err
+
+                        let err = shmunlink(mapName)
+                        if err <> 0 then
+                            let err = Marshal.GetLastWin32Error() |> strerror
+                            failwithf "[SharedMemory] could not unlink %s (ERROR: %s)" name err
+                }
 
     let create (name : string) (size : int64) =
         if RuntimeInformation.IsOSPlatform(OSPlatform.Windows) then 
             Windows.create name size
         elif RuntimeInformation.IsOSPlatform(OSPlatform.OSX) then
-            Posix.create name size        
+            Posix.Mac.create name size        
         elif RuntimeInformation.IsOSPlatform(OSPlatform.Linux) then
-            Posix.create name size
+            Posix.Linux.create name size
         else
             failwith "[SharedMemory] unknown platform"
 

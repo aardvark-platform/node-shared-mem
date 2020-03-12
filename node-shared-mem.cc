@@ -100,7 +100,7 @@ SharedMemory::SharedMemory(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Sh
     char filePath[4096];
     sprintf(filePath, "/%s", path.c_str());
     
-	int key = shm_open(filePath, O_RDWR);
+	int key = shm_open(filePath, O_RDWR, 0777);
 	if (key < 0) {
 		fail("[SharedMemory] could open \"%s\" (ERROR: %s)", path.c_str(), strerror(errno));
 	}
