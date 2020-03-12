@@ -168,8 +168,11 @@ module SharedMemory =
         [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
         extern int close(FileHandle fd)
         
-        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true)>]
-        extern string strerror(int code)
+        [<DllImport("libc", CharSet = CharSet.Ansi, SetLastError=true, EntryPoint="strerror")>]
+        extern nativeint strerrorInternal(int code)
+
+        let inline strerror (code : int) =
+            strerrorInternal code |> Marshal.PtrToStringAnsi
 
 
         let create (name : string) (size : int64) =
@@ -179,7 +182,6 @@ module SharedMemory =
             
             let flags = SharedMemoryFlags.Truncate ||| SharedMemoryFlags.Create ||| SharedMemoryFlags.ReadWrite
             let perm = Permission(Protection.ReadWriteExecute, Protection.ReadWriteExecute, Protection.ReadWriteExecute)
-
 
             let fd = shmopen(mapName, flags, perm)
             if not fd.IsValid then 
