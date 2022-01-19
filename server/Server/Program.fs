@@ -170,7 +170,7 @@ module SharedMemory =
 
             let create (name : string) (size : int64) =
                 // open the shared memory (or create if not existing)
-                let mapName = "/" + name;
+                let mapName = name
                 shmunlink(mapName) |> ignore
                 
                 let flags = SharedMemoryFlags.Truncate ||| SharedMemoryFlags.Create ||| SharedMemoryFlags.ReadWrite
