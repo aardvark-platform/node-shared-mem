@@ -1,18 +1,18 @@
 {
   "name": "node-shared-mem",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Shared Memory Functions for node.js",
   "main": "addon.js",
   "gypfile": true,
   "dependencies": {
     "bindings": "~1.5.0",
-    "node-addon-api": "^3.2.0",
-    "node-gyp-build": "^4.2.3"
+    "node-addon-api": "^4.3.0",
+    "node-gyp-build": "^4.4.0"
   },
   "devDependencies": {
-    "prebuildify": "^4.1.2",
-    "standard": "^16.0.3",
-    "tape": "^5.2.2"
+    "prebuildify": "^5.0.0",
+    "standard": "^17.0.0",
+    "tape": "^5.5.3"
   },
   "scripts": {
     "install": "node-gyp-build",
