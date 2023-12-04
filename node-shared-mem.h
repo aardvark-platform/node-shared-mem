@@ -1,14 +1,11 @@
 #ifndef NODE_SHARED_MEM_H
 #define NODE_SHARED_MEM_H
 
-//#include <node.h>
-//#include <node_object_wrap.h>
-
 #include <napi.h>
-#if defined(_WIN32) || defined(WIN32)     
+#if defined(_WIN32) || defined(WIN32)
 #include <windows.h>
 typedef HANDLE HANDLE;
-#else 
+#else
 #include <unistd.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
