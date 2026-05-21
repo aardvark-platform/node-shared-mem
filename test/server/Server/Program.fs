@@ -2,10 +2,8 @@
 open System.IO.MemoryMappedFiles
 open System.Runtime.InteropServices
 open System.Text
-open Microsoft.FSharp.NativeInterop
 
 #nowarn "9"
-
 
 type ISharedMemory =
     inherit IDisposable
@@ -13,7 +11,6 @@ type ISharedMemory =
     abstract member Size : int64
 
 module SharedMemory =
-    open System.Runtime.InteropServices
 
     [<System.Diagnostics.CodeAnalysis.SuppressMessage("NameConventions", "*")>]
     module private Windows =
@@ -319,20 +316,29 @@ module SharedMemory =
 
 [<EntryPoint>]
 let main argv =
-    use f = SharedMemory.create "testfile" (4L <<< 20)
+    if argv.Length < 3 then
+        printfn "Usage: Server <name> <length> <data>"
+        Environment.Exit 1
+
+    let name = argv.[0]
+    let length = int <| argv.[1]
+    let data = argv.[2]
+
+    printfn $"[Server] name = '{name}'"
+    printfn $"[Server] length = {length}"
+    printfn $"[Server] data = '{data}'"
+
+    let dataBytes = Encoding.UTF8.GetBytes data
+    if dataBytes.Length > length then
+        printfn $"[Server] Data requires {dataBytes.Length} bytes but only {length} were requested"
+        Environment.Exit 1
+
+    use f = SharedMemory.create name (int64 length)
     let ptr = f.Pointer
 
-    let arr = Encoding.UTF8.GetBytes "Hello From F#"
-    Marshal.Copy(arr, 0, ptr, arr.Length) 
+    Marshal.Copy(dataBytes, 0, ptr, dataBytes.Length)
 
-    let mutable running = true
-    while running do
-        printf "content# "
-        let line = System.Console.ReadLine()
-        if line <> "quit" then
-            let arr = Encoding.UTF8.GetBytes line
-            Marshal.Copy(arr, 0, ptr, arr.Length) 
-            NativePtr.write (NativePtr.ofNativeInt (ptr + nativeint arr.Length)) 0uy
-        else
-            running <- false
+    printfn "[Server] Ready"
+    Console.ReadLine() |> ignore
+
     0

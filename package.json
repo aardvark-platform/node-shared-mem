@@ -6,16 +6,19 @@
   "gypfile": true,
   "dependencies": {
     "bindings": "~1.5.0",
-    "node-addon-api": "^7.0.0",
-    "node-gyp-build": "^4.7.1"
+    "node-addon-api": "^8.7.0",
+    "node-gyp-build": "^4.8.4"
   },
   "devDependencies": {
+    "electron": "^42.2.0",
+    "electron-mocha": "^13.1.0",
     "standard": "^17.1.0",
-    "tape": "^5.7.2"
+    "tape": "^5.9.0"
   },
   "scripts": {
-    "install": "node-gyp-build",
-    "test": "tape test.js"
+    "build": "node-gyp-build",
+    "test": "tape test/test.js --timeout=30s",
+    "test:electron": "npx electron-mocha test/test.electron.js"
   },
   "repository": {
     "type": "git",

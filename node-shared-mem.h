@@ -21,12 +21,15 @@ class SharedMemory : public Napi::ObjectWrap<SharedMemory>{
 		SharedMemory(const Napi::CallbackInfo& info);
 
 	private:
-		static Napi::FunctionReference constructor;
+		Napi::Value CopyFrom(const Napi::CallbackInfo& info);
+		Napi::Value CopyTo(const Napi::CallbackInfo& info);
 		Napi::Value Close(const Napi::CallbackInfo& info);
 
-		HANDLE handle;
-		void* ptr;
-		unsigned int length;
+		HANDLE m_handle;
+		uint8_t* m_ptr;
+		size_t m_length;
+		std::string m_name;
+		Napi::Reference<Napi::ArrayBuffer> m_buffer;
 };
 
 #endif
