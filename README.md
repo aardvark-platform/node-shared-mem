@@ -1,5 +1,9 @@
 # node-shared-mem
 
+[![npm version](https://img.shields.io/npm/v/node-shared-mem)](https://www.npmjs.com/package/node-shared-mem)
+[![npm downloads](https://img.shields.io/npm/d18m/node-shared-mem)](https://www.npmjs.com/package/node-shared-mem)
+[![License](https://img.shields.io/npm/l/node-shared-mem)](https://www.npmjs.com/package/node-shared-mem)
+
 High-performance Node.js native addon (`napi`) for mapping existing cross-process shared memory files. Handles V8 pointer compression and V8 Virtual Memory Cage compatibility transparently via automatic copy fallbacks.
 
 **Note:** This module does not create shared memory blocks. Target memory regions must be allocated by an external process before initialization.
