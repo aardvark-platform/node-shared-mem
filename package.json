@@ -1,6 +1,6 @@
 {
   "name": "node-shared-mem",
-  "version": "1.0.13",
+  "version": "2.0.0",
   "description": "High-performance native addon for mapping existing cross-process shared memory regions into Node.js",
   "main": "addon.js",
   "gypfile": true,
