@@ -1,7 +1,7 @@
 {
   "name": "node-shared-mem",
   "version": "1.0.13",
-  "description": "Shared Memory Functions for node.js",
+  "description": "High-performance native addon for mapping existing cross-process shared memory regions into Node.js",
   "main": "addon.js",
   "gypfile": true,
   "dependencies": {
@@ -24,6 +24,10 @@
     "type": "git",
     "url": "git+https://github.com/aardvark-platform/node-shared-mem.git"
   },
-  "author": "krauthaufen",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "author": "Aardvark Platform Team",
   "license": "MIT"
 }
