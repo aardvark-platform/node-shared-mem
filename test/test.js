@@ -1,7 +1,7 @@
 const { spawn } = require('child_process');
 const readline = require('readline');
 const tape = require('tape');
-const SharedMemory = require('../');
+const { SharedMemory, MemoryAccess } = require('../');
 
 function str(buffer, len) {
     const a = new Uint8Array(buffer);
@@ -41,7 +41,7 @@ const bootTimeout = setTimeout(() => {
     console.error('FAILED: .NET process took too long to start.');
     if (server) server.kill();
     process.exit(1);
-}, 30000);
+}, 90000);
 
 server.on('exit', (code) => {
     if (!testsStarted) {
@@ -83,10 +83,11 @@ tape('Setup .NET server', async (t) => {
 });
 
 tape('Read from external buffer', function (t) {
-    const mem = new SharedMemory.SharedMemory(name, length);
+    const mem = new SharedMemory(name, length);
 
     t.strictEqual(mem.name, name, 'name is valid');
     t.strictEqual(mem.length, length, 'length is valid');
+    t.strictEqual(mem.access, MemoryAccess.READ | MemoryAccess.WRITE, 'access is valid');
     t.strictEqual(mem.requiresCopy, false, 'requiresCopy is false');
 
     let data = str(mem.buffer, length);

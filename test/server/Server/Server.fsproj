@@ -9,4 +9,8 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Aardvark.Base.FSharp" Version="5.3.24" />
+  </ItemGroup>
+
 </Project>

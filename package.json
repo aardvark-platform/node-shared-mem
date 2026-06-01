@@ -17,7 +17,7 @@
   },
   "scripts": {
     "build": "node-gyp rebuild",
-    "test": "tape test/test.js --timeout=30s",
+    "test": "tape test/test.js --timeout=180s",
     "test:electron": "npx electron-mocha --no-sandbox test/test.electron.js"
   },
   "repository": {

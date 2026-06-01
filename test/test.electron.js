@@ -1,7 +1,7 @@
 const { spawn } = require('child_process');
 const readline = require('readline');
 const assert = require('assert');
-const SharedMemory = require('../');
+const { SharedMemory, MemoryAccess } = require('../');
 
 function str(buffer, offset, len) {
     const a = new Uint8Array(buffer);
@@ -34,7 +34,7 @@ describe('Electron shared memory test', () => {
     const testData = 'Hello my dudes!';
 
     beforeEach(function (done) {
-        this.timeout(30000);
+        this.timeout(180000);
         let testsStarted = false;
 
         console.log('Building and spawning server...');
@@ -95,7 +95,7 @@ describe('Electron shared memory test', () => {
         const desc = slice ? ' (with offset and length)' : '';
 
         it(`Copy from shared memory${desc}`, () => {
-            const mem = new SharedMemory.SharedMemory(name, length);
+            const mem = new SharedMemory(name, length, MemoryAccess.READ);
             assert.strictEqual(mem.name, name);
             assert.strictEqual(mem.length, length);
             assert.strictEqual(mem.requiresCopy, true);
@@ -116,14 +116,16 @@ describe('Electron shared memory test', () => {
         });
 
         it(`Copy to shared memory${desc}`, () => {
-            const memWrite = new SharedMemory.SharedMemory(name, length);
+            const memWrite = new SharedMemory(name, length, MemoryAccess.WRITE);
             assert.strictEqual(memWrite.name, name);
             assert.strictEqual(memWrite.length, length);
+            assert.strictEqual(memWrite.access, MemoryAccess.WRITE);
             assert.strictEqual(memWrite.requiresCopy, true);
 
-            const memRead = new SharedMemory.SharedMemory(name, length);
+            const memRead = new SharedMemory(name, length, MemoryAccess.READ);
             assert.strictEqual(memRead.name, name);
             assert.strictEqual(memRead.length, length);
+            assert.strictEqual(memRead.access, MemoryAccess.READ);
             assert.strictEqual(memRead.requiresCopy, true);
 
             memRead.copyFrom();

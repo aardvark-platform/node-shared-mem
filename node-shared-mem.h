@@ -15,6 +15,11 @@ typedef HANDLE HANDLE;
 typedef key_t HANDLE;
 #endif
 
+#define MEMORY_ACCESS_READ 0
+#define MEMORY_ACCESS_WRITE 1
+#define MEMORY_ACCESS_EXECUTE 2
+#define HAS_MEMORY_ACCESS(mask, access) (((mask) & (access)) == (access))
+
 class SharedMemory : public Napi::ObjectWrap<SharedMemory>{
 	public:
 		static Napi::Object Init(Napi::Env env, Napi::Object exports);

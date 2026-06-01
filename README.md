@@ -30,9 +30,9 @@ Because V8 sandbox configurations vary, you must check `mem.requiresCopy` to det
 
 ### Reading Data
 ```javascript
-const shm = require('node-shared-mem');
+const { SharedMemory, MemoryAccess } = require('node-shared-mem');
 
-const mem = new shm.SharedMemory("existing_shared_zone_name", 1024);
+const mem = new SharedMemory("existing_shared_zone_name", 1024, MemoryAccess.READ); // Access permissions are optional, default is read and write
 const buffer = mem.buffer; // Access the underlying ArrayBuffer
 const view = new Uint8Array(buffer);
 
@@ -47,9 +47,9 @@ console.log(view[0]);
 
 ### Writing Data
 ```javascript
-const shm = require('node-shared-mem');
+const { SharedMemory } = require('node-shared-mem');
 
-const mem = new shm.SharedMemory("existing_shared_zone_name", 1024);
+const mem = new SharedMemory("existing_shared_zone_name", 1024);
 const buffer = mem.buffer;
 const view = new Uint8Array(buffer);
 
