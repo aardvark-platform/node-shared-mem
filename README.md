@@ -99,7 +99,7 @@ Releases are automated via GitHub CI whenever a new semantic Git tag is pushed.
 
 2. Push the commit and the new tag to GitHub to trigger the release workflow:
    ```bash
-   git push --tags
+   git push --follow-tags
    ```
 
 ## License
